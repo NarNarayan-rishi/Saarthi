@@ -1,0 +1,5 @@
+server.ts
+server/
+server_mongo/
+scratch/
+*.log
