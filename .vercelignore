@@ -1,3 +1,4 @@
+# Ignore backend files - Vercel only needs the React frontend
 server.ts
 server/
 server_mongo/
