@@ -32,25 +32,12 @@ import { AchievementUnlockedModal } from './components/AchievementUnlockedModal'
 
 const AppContent: React.FC = () => {
   const {
-    currentUserRole,
-    isAuthenticated,
-    activeTab,
-    setActiveTab,
-    activeTestModal,
-    setActiveTestModal,
-    applyingOpportunity,
-    setApplyingOpportunity,
-    selectedOpportunity,
-    setSelectedOpportunity,
-    showWelcomeModal,
-    closeWelcomeModal,
-    startAssessmentFromWelcome,
-    activeRoleTestMode,
-    activeRoleTestRole,
-    startComprehensiveRoleTest,
-    exitComprehensiveRoleTest,
-    activeAchievementUnlocked,
-    dismissAchievementModal,
+    currentUserRole, isAuthenticated, activeTab, setActiveTab,
+    activeTestModal, setActiveTestModal, applyingOpportunity, setApplyingOpportunity,
+    selectedOpportunity, setSelectedOpportunity, showWelcomeModal, closeWelcomeModal,
+    startComprehensiveRoleTest, exitComprehensiveRoleTest,
+    activeRoleTestMode, activeRoleTestRole,
+    activeAchievementUnlocked, dismissAchievementModal,
   } = useApp();
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -65,67 +52,25 @@ const AppContent: React.FC = () => {
         }
         return;
       }
-
       const rawHash = window.location.hash.replace(/^#\/?/, '');
       const [routeRole, routeTab] = rawHash.split('/');
-      const validRoles: UserRole[] = ['student', 'mentor', 'recruiter', 'institution'];
-
-      if (routeRole === 'test' && routeTab) {
-        setActiveTab('dashboard');
-        setTimeout(() => {
-          setActiveTestModal({
-            id: routeTab,
-            skillName: 'Recruiter Assessment Pipeline',
-            category: 'Technical',
-            title: 'Candidate Evaluation Test',
-            durationMinutes: 45,
-            questionsCount: 15,
-            difficulty: 'Intermediate',
-            description: 'This is the computer-based test generated for your job application pipeline. Please complete it within the time limit.',
-            questions: [
-              { id: 'q1', question: 'What is the time complexity of binary search?', options: ['O(1)', 'O(n)', 'O(log n)', 'O(n^2)'], correctIndex: 2 },
-              { id: 'q2', question: 'Which of the following is NOT a fundamental principle of Object-Oriented Programming?', options: ['Encapsulation', 'Compilation', 'Inheritance', 'Polymorphism'], correctIndex: 1 },
-              { id: 'q3', question: 'In a relational database, what is the purpose of a foreign key?', options: ['To speed up search queries', 'To uniquely identify a record', 'To establish a link between data in two tables', 'To encrypt sensitive data'], correctIndex: 2 }
-            ]
-          });
-        }, 100);
-        window.location.hash = '#/student/dashboard';
-        return;
-      }
-
+      
       if (!rawHash || routeRole === 'login' || routeRole === 'signup' || routeRole === 'forgot-password') {
         const targetTab = activeTab || 'dashboard';
         const target = `#/${currentUserRole}/${targetTab}`;
         if (window.location.hash !== target) window.location.hash = target;
         return;
       }
-
-      if (validRoles.includes(routeRole as UserRole) && routeRole !== currentUserRole) {
-        const targetTab = activeTab || 'dashboard';
-        window.location.hash = `#/${currentUserRole}/${targetTab}`;
-        return;
-      }
-
       if (routeRole === currentUserRole) {
-        const targetTab = routeTab || 'dashboard';
-        setActiveTab(targetTab);
+        setActiveTab(routeTab || 'dashboard');
       } else {
-        const targetTab = activeTab || 'dashboard';
-        window.location.hash = `#/${currentUserRole}/${targetTab}`;
+        window.location.hash = `#/${currentUserRole}/${activeTab || 'dashboard'}`;
       }
     };
-
     handleHashNavigation();
     window.addEventListener('hashchange', handleHashNavigation);
     return () => window.removeEventListener('hashchange', handleHashNavigation);
-  }, [isAuthenticated, currentUserRole, setActiveTab]);
-
-  useEffect(() => {
-    if (isAuthenticated && currentUserRole && activeTab) {
-      const targetHash = `#/${currentUserRole}/${activeTab}`;
-      if (window.location.hash !== targetHash) window.location.hash = targetHash;
-    }
-  }, [activeTab, currentUserRole, isAuthenticated]);
+  }, [isAuthenticated, currentUserRole, activeTab]);
 
   if (!isAuthenticated || !currentUserRole) {
     const hash = window.location.hash;
@@ -138,7 +83,6 @@ const AppContent: React.FC = () => {
     if (currentUserRole === 'mentor') return <MentorDashboard />;
     if (currentUserRole === 'recruiter') return <RecruiterDashboard />;
     if (currentUserRole === 'institution') return <InstitutionDashboard />;
-
     switch (activeTab) {
       case 'dashboard': return <StudentDashboard />;
       case 'journey': return <CareerJourney />;
@@ -167,33 +111,13 @@ const AppContent: React.FC = () => {
           {renderActivePage()}
         </main>
       </div>
-
       {showWelcomeModal && currentUserRole === 'student' && (
-        <WelcomeAssessmentModal
-          onClose={closeWelcomeModal}
-          onProceedToAssessment={() => { closeWelcomeModal(); setActiveTab('assessment'); }}
-          onStartDirectTest={(role) => { closeWelcomeModal(); startComprehensiveRoleTest(role); }}
-        />
+        <WelcomeAssessmentModal onClose={closeWelcomeModal} onProceedToAssessment={() => { closeWelcomeModal(); setActiveTab('assessment'); }} onStartDirectTest={(role) => { closeWelcomeModal(); startComprehensiveRoleTest(role); }} />
       )}
-      {activeRoleTestMode && activeRoleTestRole && (
-        <ComprehensiveTestModal role={activeRoleTestRole} onClose={exitComprehensiveRoleTest} />
-      )}
-      {activeTestModal && (
-        <AssessmentModal test={activeTestModal} onClose={() => setActiveTestModal(null)} />
-      )}
-      {applyingOpportunity && (
-        <ApplyModal opportunity={applyingOpportunity} onClose={() => setApplyingOpportunity(null)} />
-      )}
-      {selectedOpportunity && (
-        <OpportunityDetailsModal opportunity={selectedOpportunity} onClose={() => setSelectedOpportunity(null)} />
-      )}
-      {activeAchievementUnlocked && (
-        <AchievementUnlockedModal
-          achievement={activeAchievementUnlocked}
-          onClose={dismissAchievementModal}
-          onViewJourney={() => { dismissAchievementModal(); setActiveTab('journey'); }}
-        />
-      )}
+      {activeRoleTestMode && activeRoleTestRole && <ComprehensiveTestModal role={activeRoleTestRole} onClose={exitComprehensiveRoleTest} />}
+      {activeTestModal && <AssessmentModal test={activeTestModal} onClose={() => setActiveTestModal(null)} />}
+      {applyingOpportunity && <ApplyModal opportunity={applyingOpportunity} onClose={() => setApplyingOpportunity(null)} />}
+      {selectedOpportunity && <OpportunityDetailsModal opportunity={selectedOpportunity} onClose={() => setSelectedOpportunity(null)} />}
     </div>
   );
 };
