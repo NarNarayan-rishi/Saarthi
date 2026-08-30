@@ -1,8 +1,1 @@
-{
-  "name": "Saarthi - Student Career Portal",
-  "description": "Academia-Industry collaboration dashboard for students featuring an 8-stage Career Journey progression engine with visual progress tracking and achievement unlocks, Next Best Action recommendations, skill assessments, dynamic skill gap analysis, weighted internship and job recommendations, application tracking, tile-style skill inventory with certificate storage, and digital portfolio.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
+{"name":"Remix Remix Remix Remix AcademiaConnect - Student Career Portal","description":"Academia-Industry collaboration dashboard for students featuring an 8-stage Career Journey progression engine with visual progress tracking and achievement unlocks, Next Best Action recommendations, skill assessments, dynamic skill gap analysis, weighted internship and job recommendations, application tracking, tile-style skill inventory with certificate storage, and digital portfolio.","requestFramePermissions":[],"majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}

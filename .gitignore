@@ -1,8 +1,28 @@
+# Dependencies
 node_modules/
-build/
+server/node_modules/
+server_mongo/node_modules/
+
+# Build outputs
 dist/
-coverage/
+server_mongo/dist/
+
+# Environment variables (NEVER commit these!)
+.env
+server_mongo/.env
+
+# SQLite database
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
 *.log
-.env*
-!.env.example
+npm-debug.log*
