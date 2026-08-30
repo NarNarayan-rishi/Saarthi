@@ -1294,7 +1294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [completedJourneyNodeIds]);
 
   // Auth actions
-  const loginAsRole = async (role: UserRole, email?: string) => {
+  /*const loginAsRole = async (role: UserRole, email?: string) => {
     // Try to authenticate via the real backend first
     try {
       const { apiLogin } = await import('../services/api');
@@ -1372,7 +1372,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
   };
+*/
 
+ // Making sure your website saves data permanently to the database (like when you add a skill) and loads a completely fresh, blank profile for new users (while keeping the demo accounts safe).
+  // --- LIVE DATABASE SYNC HOOK ---
+  useEffect(() => {
+    const saveToDB = async () => {
+      const token = localStorage.getItem('saarthi_jwt_token');
+      if (isAuthenticated && token) {
+        try {
+          const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+          await fetch(`${BACKEND}/api/auth/me`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ profileData: profile })
+          });
+        } catch (e) {
+          console.warn('Silent save failed', e);
+        }
+      }
+    };
+    
+    // Only save if it's a real user (we leave the demo accounts alone)
+    if (localStorage.getItem('saarthi_user_id') && localStorage.getItem('saarthi_jwt_token')) {
+      const timer = setTimeout(saveToDB, 1500); // Debounce saves by 1.5s
+      return () => clearTimeout(timer);
+    }
+  }, [profile, isAuthenticated]);
+
+  const loginAsRole = async (role: UserRole, email?: string) => {
+    setCurrentUserRole(role);
+    setIsAuthenticated(true);
+    setActiveTab('dashboard');
+    try {
+      localStorage.setItem('saarthi_role', role);
+      localStorage.setItem('saarthi_auth', 'true');
+    } catch {}
+
+    // Hydrate from Database for Real Users
+    if (email && !email.startsWith('demo')) {
+      try {
+        const token = localStorage.getItem('saarthi_jwt_token');
+        const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+        const res = await fetch(`${BACKEND}/api/auth/me`, {
+           headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const userData = await res.json();
+        
+        if (userData && userData.profileData && Object.keys(userData.profileData).length > 0) {
+           // If they have saved data in MongoDB, load it!
+           if (userData.profileData.skills) {
+             setProfile(prev => ({ ...prev, skills: userData.profileData.skills }));
+           }
+        } else {
+           // Completely Blank Slate for brand new users!
+           setProfile(prev => ({ 
+             ...prev, 
+             name: userData.name || '', 
+             email: userData.email || '', 
+             skills: [], 
+             experience: [], 
+             education: [] 
+           }));
+        }
+      } catch (e) {
+        console.warn('Failed to load DB profile', e);
+      }
+    }
+
+    if (typeof window !== 'undefined') window.location.hash = `#/${role}/dashboard`;
+    if (role === 'student') setShowWelcomeModal(true);
+  };
+  
   const logout = () => {
     setIsAuthenticated(false);
     setCurrentUserRole(null);
