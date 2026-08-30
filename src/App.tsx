@@ -4,6 +4,8 @@ import { UserRole } from './types';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginPage } from './pages/auth/LoginPage';
+import SignUpPage from './pages/auth/SignUpPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { CareerJourney } from './pages/student/CareerJourney';
 import { MentorshipPage } from './pages/student/MentorshipPage';
@@ -53,12 +55,12 @@ const AppContent: React.FC = () => {
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // 1. External URL & Role-Based Route Guard (Handles initial load, back/forward, manual URL edits)
   useEffect(() => {
     const handleHashNavigation = () => {
-      // If unauthenticated, restrict URL to login
       if (!isAuthenticated || !currentUserRole) {
-        if (typeof window !== 'undefined' && window.location.hash !== '#/login' && window.location.hash !== '#login') {
+        const hash = window.location.hash;
+        const allowed = ['#/signup', '#/forgot-password'];
+        if (typeof window !== 'undefined' && hash !== '#/login' && hash !== '#login' && !allowed.includes(hash)) {
           window.location.hash = '#/login';
         }
         return;
@@ -68,14 +70,8 @@ const AppContent: React.FC = () => {
       const [routeRole, routeTab] = rawHash.split('/');
       const validRoles: UserRole[] = ['student', 'mentor', 'recruiter', 'institution'];
 
-      // Catch test route links
       if (routeRole === 'test' && routeTab) {
-        if (currentUserRole !== 'student') {
-          setCurrentUserRole('student');
-        }
         setActiveTab('dashboard');
-        
-        // Use a tiny timeout to ensure App is mounted and context is ready before showing modal
         setTimeout(() => {
           setActiveTestModal({
             id: routeTab,
@@ -87,209 +83,115 @@ const AppContent: React.FC = () => {
             difficulty: 'Intermediate',
             description: 'This is the computer-based test generated for your job application pipeline. Please complete it within the time limit.',
             questions: [
-              {
-                id: 'q1',
-                question: 'What is the time complexity of binary search?',
-                options: ['O(1)', 'O(n)', 'O(log n)', 'O(n^2)'],
-                correctIndex: 2
-              },
-              {
-                id: 'q2',
-                question: 'Which of the following is NOT a fundamental principle of Object-Oriented Programming?',
-                options: ['Encapsulation', 'Compilation', 'Inheritance', 'Polymorphism'],
-                correctIndex: 1
-              },
-              {
-                id: 'q3',
-                question: 'In a relational database, what is the purpose of a foreign key?',
-                options: ['To speed up search queries', 'To uniquely identify a record', 'To establish a link between data in two tables', 'To encrypt sensitive data'],
-                correctIndex: 2
-              }
+              { id: 'q1', question: 'What is the time complexity of binary search?', options: ['O(1)', 'O(n)', 'O(log n)', 'O(n^2)'], correctIndex: 2 },
+              { id: 'q2', question: 'Which of the following is NOT a fundamental principle of Object-Oriented Programming?', options: ['Encapsulation', 'Compilation', 'Inheritance', 'Polymorphism'], correctIndex: 1 },
+              { id: 'q3', question: 'In a relational database, what is the purpose of a foreign key?', options: ['To speed up search queries', 'To uniquely identify a record', 'To establish a link between data in two tables', 'To encrypt sensitive data'], correctIndex: 2 }
             ]
           });
         }, 100);
-        
         window.location.hash = '#/student/dashboard';
         return;
       }
 
-      // If user navigates to login or empty hash while authenticated:
-      if (!rawHash || routeRole === 'login') {
+      if (!rawHash || routeRole === 'login' || routeRole === 'signup' || routeRole === 'forgot-password') {
         const targetTab = activeTab || 'dashboard';
         const target = `#/${currentUserRole}/${targetTab}`;
-        if (window.location.hash !== target) {
-          window.location.hash = target;
-        }
+        if (window.location.hash !== target) window.location.hash = target;
         return;
       }
 
-      // Check for cross-role unauthorized access attempt
       if (validRoles.includes(routeRole as UserRole) && routeRole !== currentUserRole) {
-        console.warn(`Unauthorized route attempt: ${routeRole}. Restoring to authenticated role: ${currentUserRole}`);
         const targetTab = activeTab || 'dashboard';
         window.location.hash = `#/${currentUserRole}/${targetTab}`;
         return;
       }
 
-      // If the route matches the current user's role:
       if (routeRole === currentUserRole) {
         const targetTab = routeTab || 'dashboard';
         setActiveTab(targetTab);
       } else {
-        // Unknown route prefix - normalize to authenticated dashboard
         const targetTab = activeTab || 'dashboard';
         window.location.hash = `#/${currentUserRole}/${targetTab}`;
       }
     };
 
-    // Run check on mount and when authentication or role changes
     handleHashNavigation();
-
     window.addEventListener('hashchange', handleHashNavigation);
     return () => window.removeEventListener('hashchange', handleHashNavigation);
   }, [isAuthenticated, currentUserRole, setActiveTab]);
 
-  // 2. Keep the URL hash in sync when activeTab is changed via sidebar or internal navigation
   useEffect(() => {
     if (isAuthenticated && currentUserRole && activeTab) {
       const targetHash = `#/${currentUserRole}/${activeTab}`;
-      if (window.location.hash !== targetHash) {
-        window.location.hash = targetHash;
-      }
+      if (window.location.hash !== targetHash) window.location.hash = targetHash;
     }
   }, [activeTab, currentUserRole, isAuthenticated]);
 
-  // If user is not authenticated or hasn't selected a role, show the Login/Role Selection page first
   if (!isAuthenticated || !currentUserRole) {
+    const hash = window.location.hash;
+    if (hash === '#/signup') return <SignUpPage />;
+    if (hash === '#/forgot-password') return <ForgotPasswordPage />;
     return <LoginPage />;
   }
 
   const renderActivePage = () => {
-    // 1. Mentor Role View
-    if (currentUserRole === 'mentor') {
-      return <MentorDashboard />;
-    }
+    if (currentUserRole === 'mentor') return <MentorDashboard />;
+    if (currentUserRole === 'recruiter') return <RecruiterDashboard />;
+    if (currentUserRole === 'institution') return <InstitutionDashboard />;
 
-    // 2. Recruiter Role View
-    if (currentUserRole === 'recruiter') {
-      return <RecruiterDashboard />;
-    }
-
-    // 3. Institution Role View
-    if (currentUserRole === 'institution') {
-      return <InstitutionDashboard />;
-    }
-
-    // 4. Student Role Views
     switch (activeTab) {
-      case 'dashboard':
-        return <StudentDashboard />;
-      case 'journey':
-        return <CareerJourney />;
-      case 'mentorship':
-        return <MentorshipPage />;
-      case 'profile':
-        return <StudentProfile />;
-      case 'assessment':
-        return <SkillAssessmentPage />;
-      case 'skills':
-        return <MySkillsPage />;
-      case 'gaps':
-        return <SkillGapsPage />;
-      case 'internships':
-        return <InternshipsPage />;
-      case 'jobs':
-        return <JobsPage />;
-      case 'learning':
-        return <LearningPage />;
-      case 'applications':
-        return <ApplicationsPage />;
-      case 'portfolio':
-        return <PortfolioPage />;
-      case 'messages':
-        return <MessagesPage />;
-      case 'settings':
-        return <SettingsPage />;
-      default:
-        return <StudentDashboard />;
+      case 'dashboard': return <StudentDashboard />;
+      case 'journey': return <CareerJourney />;
+      case 'mentorship': return <MentorshipPage />;
+      case 'profile': return <StudentProfile />;
+      case 'assessment': return <SkillAssessmentPage />;
+      case 'skills': return <MySkillsPage />;
+      case 'gaps': return <SkillGapsPage />;
+      case 'internships': return <InternshipsPage />;
+      case 'jobs': return <JobsPage />;
+      case 'learning': return <LearningPage />;
+      case 'applications': return <ApplicationsPage />;
+      case 'portfolio': return <PortfolioPage />;
+      case 'messages': return <MessagesPage />;
+      case 'settings': return <SettingsPage />;
+      default: return <StudentDashboard />;
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-['Plus_Jakarta_Sans'] antialiased">
-      {/* Top Navigation Bar */}
-      <Navbar
-        isMobileSidebarOpen={isMobileSidebarOpen}
-        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-      />
-
-      {/* Main Container Layout */}
+      <Navbar isMobileSidebarOpen={isMobileSidebarOpen} onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
-        {/* Persistent Desktop & Responsive Mobile Sidebar */}
-        <Sidebar
-          isMobileOpen={isMobileSidebarOpen}
-          onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        />
-
-        {/* Dynamic Main View Content Area */}
+        <Sidebar isMobileOpen={isMobileSidebarOpen} onCloseMobile={() => setIsMobileSidebarOpen(false)} />
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           {renderActivePage()}
         </main>
       </div>
 
-      {/* Global Interactive Modals */}
       {showWelcomeModal && currentUserRole === 'student' && (
         <WelcomeAssessmentModal
           onClose={closeWelcomeModal}
-          onProceedToAssessment={(role) => {
-            closeWelcomeModal();
-            setActiveTab('assessment');
-          }}
-          onStartDirectTest={(role) => {
-            closeWelcomeModal();
-            startComprehensiveRoleTest(role);
-          }}
+          onProceedToAssessment={() => { closeWelcomeModal(); setActiveTab('assessment'); }}
+          onStartDirectTest={(role) => { closeWelcomeModal(); startComprehensiveRoleTest(role); }}
         />
       )}
-
-      {/* 50-Question Comprehensive Role Assessment Modal */}
       {activeRoleTestMode && activeRoleTestRole && (
-        <ComprehensiveTestModal
-          role={activeRoleTestRole}
-          onClose={exitComprehensiveRoleTest}
-        />
+        <ComprehensiveTestModal role={activeRoleTestRole} onClose={exitComprehensiveRoleTest} />
       )}
-
       {activeTestModal && (
-        <AssessmentModal
-          test={activeTestModal}
-          onClose={() => setActiveTestModal(null)}
-        />
+        <AssessmentModal test={activeTestModal} onClose={() => setActiveTestModal(null)} />
       )}
-
       {applyingOpportunity && (
-        <ApplyModal
-          opportunity={applyingOpportunity}
-          onClose={() => setApplyingOpportunity(null)}
-        />
+        <ApplyModal opportunity={applyingOpportunity} onClose={() => setApplyingOpportunity(null)} />
       )}
-
       {selectedOpportunity && (
-        <OpportunityDetailsModal
-          opportunity={selectedOpportunity}
-          onClose={() => setSelectedOpportunity(null)}
-        />
+        <OpportunityDetailsModal opportunity={selectedOpportunity} onClose={() => setSelectedOpportunity(null)} />
       )}
-
-      {/* Positive Reinforcement Gamification Modal */}
       {activeAchievementUnlocked && (
         <AchievementUnlockedModal
           achievement={activeAchievementUnlocked}
           onClose={dismissAchievementModal}
-          onViewJourney={() => {
-            dismissAchievementModal();
-            setActiveTab('journey');
-          }}
+          onViewJourney={() => { dismissAchievementModal(); setActiveTab('journey'); }}
         />
       )}
     </div>
