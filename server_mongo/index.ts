@@ -33,6 +33,7 @@ const UserSchema = new Schema({
   email:             { type: String, required: true, unique: true },
   name:              { type: String, required: true },
   role:              { type: String, required: true, enum: ['student','recruiter','mentor','institution'] },
+  course:            { type: String, default: '' },
   college:           { type: String, default: '' },
   year:              { type: String, default: '' },
   location:          { type: String, default: '' },
@@ -43,7 +44,8 @@ const UserSchema = new Schema({
   naukriToken:       { type: String, default: null },
   linkedinConnected: { type: Boolean, default: false },
   naukriConnected:   { type: Boolean, default: false },
-  profile:           { type: Schema.Types.Mixed, default: {} },
+  // This field will store ALL their live data (skills, assessments, internships applied)
+  profileData:       { type: Schema.Types.Mixed, default: {} },
 }, { timestamps: true });
 
 const OTPSchema = new Schema({
@@ -67,23 +69,9 @@ const JobSchema = new Schema({
   applicantsCount:   { type: Number, default: 0 },
 }, { timestamps: true });
 
-const ApplicationSchema = new Schema({
-  opportunityId:           { type: String, required: true },
-  studentId:               { type: String, required: true },
-  status:                  { type: String, default: 'Applied' },
-}, { timestamps: true });
-
-const MessageSchema = new Schema({
-  senderName:  { type: String, required: true },
-  recipientId: { type: String, required: true },
-  messages:    [{ sender: String, text: String, timestamp: String }],
-}, { timestamps: true });
-
-const User        = mongoose.model('User', UserSchema);
-const OTP         = mongoose.model('OTP', OTPSchema);
-const Job         = mongoose.model('Job', JobSchema);
-const Application = mongoose.model('Application', ApplicationSchema);
-const Message     = mongoose.model('Message', MessageSchema);
+const User = mongoose.model('User', UserSchema);
+const OTP  = mongoose.model('OTP', OTPSchema);
+const Job  = mongoose.model('Job', JobSchema);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function hashPassword(password: string) {
@@ -117,63 +105,38 @@ function authMiddleware(req: Request, res: Response, next: Function) {
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', message: 'MongoDB backend running!' }));
 
-// ─── Google Auth (NEW) ────────────────────────────────────────────────────────
-app.post('/api/auth/google', async (req, res) => {
+// ─── Live Data Persistence Routes ─────────────────────────────────────────────
+// Get user's live profile data
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
-    const { token, role } = req.body;
-    
-    // Verify token with Google's public endpoint
-    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-    const googleData = await googleRes.json();
-    
-    if (!googleRes.ok) {
-      return res.status(400).json({ error: 'Invalid Google token' });
-    }
-
-    const email = googleData.email.toLowerCase();
-    const name = googleData.name;
-    const googleId = googleData.sub;
-
-    let user = await User.findOne({ email });
-
-    if (!user) {
-      // Create new account automatically if they don't exist
-      user = await User.create({
-        email,
-        name,
-        role: role || 'student',
-        passwordHash: 'GOOGLE_AUTH_NO_PASSWORD',
-        googleId
-      });
-      
-      await sendEmail(email, 'Welcome to Saarthi! 🎉',
-        `<h2>Welcome to Saarthi, ${name}!</h2>
-         <p>Your account was successfully created using Google.</p>`
-      );
-    }
-
-    const jwtToken = makeToken({ id: user._id, email: user.email, role: user.role, name: user.name });
-    res.json({
-      token: jwtToken,
-      user: {
-        id: user._id.toString(), email: user.email, name: user.name, role: user.role,
-        college: user.get('college'), year: user.get('year'), location: user.get('location'), age: user.get('age'),
-      },
-    });
+    const user = await User.findById((req as any).user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Google authentication failed' });
+    res.status(500).json({ error: 'Failed to fetch user data' });
+  }
+});
+
+// Update user's live profile data (skills, assessments, internships)
+app.put('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const { profileData } = req.body;
+    const user = await User.findByIdAndUpdate((req as any).user.id, { profileData }, { new: true });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update profile data' });
   }
 });
 
 // ─── Standard Auth (Email/OTP) ───────────────────────────────────────────────
 app.post('/api/auth/send-otp', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     const user = await User.findOne({ email: email.toLowerCase() });
+    
     if (!user) return res.status(400).json({ error: 'No account found with this email' });
-    if (user.get('passwordHash') !== hashPassword(password))
-      return res.status(400).json({ error: 'Incorrect password' });
+    if (user.get('passwordHash') !== hashPassword(password)) return res.status(400).json({ error: 'Incorrect password' });
+    if (user.role !== role) return res.status(400).json({ error: `This account is registered as a ${user.role}, not a ${role}.` });
 
     await OTP.deleteMany({ email: email.toLowerCase(), type: 'login' });
     const code = generate6DigitCode();
@@ -205,9 +168,23 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { email, name, password, role } = req.body;
-    if (await User.findOne({ email: email.toLowerCase() })) return res.status(400).json({ error: 'Email exists' });
-    await User.create({ email: email.toLowerCase(), name, role, passwordHash: hashPassword(password) });
+    const { email, name, password, role, course, college } = req.body;
+    
+    // Strict Backend Validation
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passRegex.test(password)) return res.status(400).json({ error: 'Password does not meet strict requirements' });
+    if (await User.findOne({ email: email.toLowerCase() })) return res.status(400).json({ error: 'Email already exists' });
+
+    await User.create({ 
+      email: email.toLowerCase(), 
+      name, role, course, college,
+      passwordHash: hashPassword(password),
+      profileData: {
+        skills: [],
+        applications: [],
+        comprehensiveResults: {}
+      } // Blank slate for new users!
+    });
     res.json({ message: 'Account created' });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
